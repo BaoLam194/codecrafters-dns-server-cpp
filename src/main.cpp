@@ -85,8 +85,18 @@ int main()
         response.questions->qClass = htons(1);
 
         // Handle answer
+        response.answers = new DNSAnswer[ntohs(response.header.anCount)];
+        response.answers->name = response.questions->qName;
+        response.answers->type = htons(1);
+        response.answers->_class = htons(1);
+        response.answers->ttl = htons(60);
+        response.answers->rdLength = htons(4);
+        response.answers->rData = "\x08"
+                                  "\x08"
+                                  "\x08"
+                                  "\x08";
 
-        // Parse everything inside a buffer:
+        // Serialize everything inside a buffer:
         char sendBuf[512];
         size_t offset = 0;
         serializeDNSMessage(response, sendBuf, offset);

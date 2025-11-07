@@ -1051,3 +1051,4 @@ vcpkg_installed
 .gdb_history
 input.txt
 output.txt
+client

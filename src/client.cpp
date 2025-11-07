@@ -9,7 +9,7 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
     if (argc != 2)
     {
         std::cout << "Your are giving " << argc - 1 << " arguments, 1 expected" << std::endl;
-        exit(0);
+        return 1;
     }
     // Convert the argument into network ip address
     uint32_t ser_ip;
@@ -32,9 +32,38 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
         std::cerr << "Socket creation failed: " << strerror(errno) << "..." << std::endl;
         return 1;
     }
-    struct sockaddr_in serverAddress = {
+    sockaddr_in serverAddress = {
         .sin_family = AF_INET,
         .sin_port = htons(2053),
-        .sin_addr.s_addr = (in_addr_t)ser_ip,
+        .sin_addr = {ser_ip},
     };
+    // Construct a normal dns query
+    DNSMessage req;
+    req.header.transactionId = htons(1904);
+    req.header.flags = 0;
+    req.header.qdCount = htons(1);
+    req.header.anCount = 0;
+    req.header.nsCount = 0;
+    req.header.arCount = 0;
+
+    req.questions = new DNSQuestion[ntohs(req.header.qdCount)]; // Construct 1 question only
+    req.questions->qName = "\x0c"
+                           "codecrafters"
+                           "\x02"
+                           "io";
+    req.questions->qName.push_back('\0'); // add terminale byte for name.
+    req.questions->qType = htons(1);
+    req.questions->qClass = htons(1);
+    // Serialize everything into a buffer:
+    char sendBuf[512];
+    size_t offset = 0;
+
+    serializeDNSMessage(req, sendBuf, offset);
+    // Send to serverAddress a dns query
+    if (!sendto(udpSocket, sendBuf, offset, 0, (sockaddr *)&serverAddress, sizeof(serverAddress)))
+    {
+        std::cerr << "Send data fails: " << strerror(errno) << "..." << std::endl;
+        return 1;
+    }
+    close(udpSocket);
 }

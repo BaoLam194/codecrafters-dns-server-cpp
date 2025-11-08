@@ -39,21 +39,19 @@ struct DNSMessage
 };
 
 // Parse the name into labels, codecrafters.io -> \x0ccodecrafters\x02io\x00
-std::string parseName(std::string name)
+std::string serializeName(std::string name)
 {
     std::string result = "";
     std::string temp = "";
     uint8_t len = 0;
-    for (int i = 0; i <= name.length(); i++)
+    for (int i = 0; i < name.length(); i++)
     {
-        if (i == name.length() || name[i] == '.')
+        if (name[i] == '.')
         {
             result.push_back(len);
             result += temp;
             len = 0;
             temp = "";
-            if (i == name.length())
-                result.push_back('\0');
         }
         else if (name[i] != '.')
         {
@@ -61,6 +59,11 @@ std::string parseName(std::string name)
             temp += name[i];
         }
     }
+    // Final label
+    result.push_back(len);
+    result += temp;
+    // Add null terminate
+    result.push_back('\0');
     return result;
 }
 
@@ -77,8 +80,9 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
     for (int i = 0; i < numQ; i++)
     {
         DNSQuestion &q = src.questions[i];
-        memcpy(dest + len, q.qName.data(), (size_t)q.qName.length());
-        len += q.qName.length();
+        std::string temp = serializeName(q.qName);
+        memcpy(dest + len, temp.data(), (size_t)temp.length());
+        len += temp.length();
         memcpy(dest + len, &(q.qType), sizeof(uint16_t));
         len += sizeof(uint16_t);
         memcpy(dest + len, &(q.qClass), sizeof(uint16_t));
@@ -90,8 +94,9 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
     for (int i = 0; i < numA; i++)
     {
         DNSAnswer &a = src.answers[i];
-        memcpy(dest + len, a.name.data(), (size_t)a.name.length());
-        len += a.name.length();
+        std::string temp = serializeName(a.name);
+        memcpy(dest + len, temp.data(), (size_t)temp.length());
+        len += temp.length();
         memcpy(dest + len, &(a.type), sizeof(uint16_t));
         len += sizeof(uint16_t);
         memcpy(dest + len, &(a._class), sizeof(uint16_t));

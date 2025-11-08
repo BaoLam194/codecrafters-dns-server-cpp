@@ -64,13 +64,13 @@ int main()
         }
 
         buffer[bytesRead] = '\0';
-        std::cout << "Received " << bytesRead << " bytes: " << buffer << std::endl;
+        std::cout << "Received " << bytesRead << " bytes." << std::endl;
         // Read the receive into a file for debugging
 
         std::ofstream file("./src/clientQuery.txt", std::ios::out | std::ios::trunc);
         file.write(buffer, bytesRead);
         file.close();
-        std::cout << "Just received a dns query, stored in src/clientQuery.txt" << std::endl;
+        std::cout << "Just received a dns query, stored in src/clientQuery.txt." << std::endl;
 
         // Create an empty message and parse the query into response
         DNSMessage response;
@@ -79,11 +79,7 @@ int main()
 
         // Handle question
         response.questions = new DNSQuestion[ntohs(response.header.qdCount)]; // currently have one question
-        response.questions->qName = "\x0c"
-                                    "codecrafters"
-                                    "\x02"
-                                    "io";
-        response.questions->qName.push_back('\0'); // add terminale byte for name.
+        response.questions->qName = "codecrafters.io";
         response.questions->qType = htons(1);
         response.questions->qClass = htons(1);
 

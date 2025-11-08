@@ -48,11 +48,7 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
     req.header.arCount = 0;
 
     req.questions = new DNSQuestion[ntohs(req.header.qdCount)]; // Construct 1 question only
-    req.questions->qName = "\x0c"
-                           "codecrafters"
-                           "\x02"
-                           "io";
-    req.questions->qName.push_back('\0'); // add terminale byte for name.
+    req.questions->qName = "codecrafters.io";
     req.questions->qType = htons(1);
     req.questions->qClass = htons(1);
     // Serialize everything into a buffer:
@@ -61,6 +57,8 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
 
     serializeDNSMessage(sendBuf, req, offset);
     // Send to serverAddress a dns query
+    for (unsigned char c : sendBuf)
+        printf("%02X ", c);
     if (!sendto(udpSocket, sendBuf, offset, 0, reinterpret_cast<sockaddr *>(&serverAddress), sizeof(serverAddress)))
     {
         std::cerr << "Send data fails: " << strerror(errno) << "..." << std::endl;

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include "netstruct.hpp"
+#include <fstream>
 int main(int argc, char **argv) // Take in a ipv4 address argument and send to the server a dns query
 {
     if (argc != 2)
@@ -39,7 +40,7 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
     };
     // Construct a normal dns query
     DNSMessage req;
-    req.header.transactionId = htons(1904);
+    req.header.transactionId = htons(5555);
     req.header.flags = 0;
     req.header.qdCount = htons(1);
     req.header.anCount = 0;
@@ -58,12 +59,29 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
     char sendBuf[512];
     size_t offset = 0;
 
-    serializeDNSMessage(req, sendBuf, offset);
+    serializeDNSMessage(sendBuf, req, offset);
     // Send to serverAddress a dns query
-    if (!sendto(udpSocket, sendBuf, offset, 0, (sockaddr *)&serverAddress, sizeof(serverAddress)))
+    if (!sendto(udpSocket, sendBuf, offset, 0, reinterpret_cast<sockaddr *>(&serverAddress), sizeof(serverAddress)))
     {
         std::cerr << "Send data fails: " << strerror(errno) << "..." << std::endl;
         return 1;
     }
+
+    // Hear back the dns response from server
+    char buffer[512];
+    sockaddr_in recvAddr;
+    socklen_t recvAddrLen = sizeof(sockaddr_in);
+    int bytesReceived;
+    bytesReceived = recvfrom(udpSocket, buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr *>(&recvAddr), &recvAddrLen);
+    if (bytesReceived == -1)
+    {
+        std::cerr << "Error receiving dns response: " << strerror(errno) << "..." << std::endl;
+        return 1;
+    }
+    // Write back the dns response into a file
+    std::ofstream file("./src/serverResponse.txt", std::ios::out | std::ios::trunc);
+    file.write(buffer, bytesReceived);
+    file.close();
+    std::cout << "Received a dns response, stored in src/clientQuery.txt" << std::endl;
     close(udpSocket);
 }

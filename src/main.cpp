@@ -5,6 +5,7 @@
 #include <cstring>
 #include "netstruct.hpp"
 #include <fstream>
+#include <vector>
 
 int main()
 {
@@ -81,12 +82,12 @@ int main()
         DNSMessage response;
         // Handle Header
         response.header.transactionId = htons(1234);
-        if (ntohs(query.header.qdCount) & (1 << 15)) // if flag bit is reply, then wrong
+        if (ntohs(query.header.flags) & (1 << 15)) // if flag bit is reply, then wrong
         {
             std::cerr << "Expected a query, reply received. " << strerror(errno) << std::endl;
             return 1;
         }
-        response.header.flags = htons(1 << 15);
+        response.header.flags = query.header.flags | htons(1 << 15);
         response.header.qdCount = query.header.qdCount;
         // 0 should be same for both network and host byte.
         response.header.anCount = response.header.qdCount;
@@ -95,10 +96,9 @@ int main()
 
         // Handle question
         size_t numQ = ntohs(response.header.qdCount);
-        response.questions = new DNSQuestion[numQ]; // currently have one question
         for (int i = 0; i < numQ; i++)
         {
-            DNSQuestion &q = response.questions[i];
+            DNSQuestion q;
             q.qName = query.questions[i].qName;
             if (ntohs(query.questions[i].qType) != 1 || ntohs(query.questions[i].qClass) != 1)
             {
@@ -107,14 +107,14 @@ int main()
             }
             q.qType = query.questions[i].qType;
             q.qClass = query.questions[i].qClass;
+            response.questions.push_back(q);
         }
 
         // Handle answer
         size_t numA = ntohs(response.header.qdCount);
-        response.answers = new DNSAnswer[numA];
         for (int i = 0; i < numA; i++)
         {
-            DNSAnswer &a = response.answers[i];
+            DNSAnswer a;
             a.name = query.questions[i].qName;
             if (ntohs(query.questions[i].qType) != 1 || ntohs(query.questions[i].qClass) != 1)
             {
@@ -129,6 +129,7 @@ int main()
                       "\x08"
                       "\x08"
                       "\x08";
+            response.answers.push_back(a);
         }
 
         // Serialize everything into a buffer:

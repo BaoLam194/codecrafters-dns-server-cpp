@@ -7,6 +7,7 @@
 #include <string>
 #include <cstring>
 #include <arpa/inet.h>
+#include <vector>
 
 // Default should be network order byte, so need to change to host byte order for executing
 struct DNSHeader
@@ -37,13 +38,8 @@ struct DNSAnswer
 struct DNSMessage // Flexible with the number of questions and answers
 {
     DNSHeader header;
-    DNSQuestion *questions = nullptr;
-    DNSAnswer *answers = nullptr;
-    ~DNSMessage() // Free data use
-    {
-        delete[] questions;
-        delete[] answers;
-    }
+    std::vector<DNSQuestion> questions;
+    std::vector<DNSAnswer> answers;
 };
 
 // Serialize the name into labels, codecrafters.io -> \x0ccodecrafters\x02io\x00
@@ -107,7 +103,7 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
     // Serialize each question
     for (int i = 0; i < numQ; i++)
     {
-        DNSQuestion &q = src.questions[i];
+        const DNSQuestion &q = src.questions[i];
         std::string temp = serializeName(q.qName);
         memcpy(dest + len, temp.data(), (size_t)temp.length());
         len += temp.length();
@@ -121,7 +117,7 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
     size_t numA = ntohs(src.header.anCount);
     for (int i = 0; i < numA; i++)
     {
-        DNSAnswer &a = src.answers[i];
+        const DNSAnswer &a = src.answers[i];
         std::string temp = serializeName(a.name);
         memcpy(dest + len, temp.data(), (size_t)temp.length());
         len += temp.length();
@@ -145,22 +141,13 @@ void parseDNSMessage(DNSMessage &dest, char *src, size_t &len)
 
     memcpy(&dest.header, src + len, sizeof(DNSHeader));
     len += sizeof(DNSHeader);
-    // Change from query to reply in flags
-    dest.header.flags |= htons(1 << 15);
-    // Change bits 1->8, 10 and 11 to 0
-    dest.header.flags &= htons(~(0b11111111));
-    dest.header.flags &= htons(~(0b11 << 9));
-    // qd,ns,ar count got copied normally, just need update ancount
 
     // Parse the question section,
-
     // Parse each question
     size_t numQ = ntohs(dest.header.qdCount);
-    if (numQ)
-        dest.questions = new DNSQuestion[numQ];
     for (int i = 0; i < numQ; i++)
     {
-        DNSQuestion &q = dest.questions[0];
+        DNSQuestion q;
         int label_len = 0;
         while (src[len + label_len] != '\0')
         {
@@ -174,6 +161,7 @@ void parseDNSMessage(DNSMessage &dest, char *src, size_t &len)
         len += sizeof(uint16_t);
         memcpy(&q.qClass, src + len, sizeof(uint16_t));
         len += sizeof(uint16_t);
+        dest.questions.push_back(q);
     }
 }
 

@@ -5,6 +5,7 @@
 #include <cstring>
 #include "netstruct.hpp"
 #include <fstream>
+#include <vector>
 int main(int argc, char **argv) // Take in a ipv4 address argument and send to the server a dns query
 {
     if (argc != 2)
@@ -42,15 +43,21 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
     DNSMessage req;
     req.header.transactionId = htons(5555);
     req.header.flags = 0;
-    req.header.qdCount = htons(1);
+    req.header.qdCount = htons(2);
     req.header.anCount = 0;
     req.header.nsCount = 0;
     req.header.arCount = 0;
 
-    req.questions = new DNSQuestion[ntohs(req.header.qdCount)]; // Construct 1 question only
-    req.questions->qName = "codecrafters.io";
-    req.questions->qType = htons(1);
-    req.questions->qClass = htons(1);
+    DNSQuestion q1;
+    q1.qName = "codecrafters.io";
+    q1.qType = htons(1);
+    q1.qClass = htons(1);
+    req.questions.push_back(q1);
+    DNSQuestion q2;
+    q2.qName = "baolam.top";
+    q2.qType = htons(1);
+    q2.qClass = htons(1);
+    req.questions.push_back(q2);
     // Serialize everything into a buffer:
     char sendBuf[512];
     size_t offset = 0;

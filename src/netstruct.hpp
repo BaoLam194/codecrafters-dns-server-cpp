@@ -1,3 +1,6 @@
+#ifndef MY_NETWORK_CLASS
+#define MY_NETWORK_CLASS
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -5,7 +8,7 @@
 #include <cstring>
 #include <arpa/inet.h>
 
-// Default should be network order byte, so need to change to host byte order before changing
+// Default should be network order byte, so need to change to host byte order for executing
 struct DNSHeader
 {
     uint16_t transactionId;
@@ -31,14 +34,19 @@ struct DNSAnswer
     uint16_t rdLength;
     std::string rData;
 };
-struct DNSMessage
+struct DNSMessage // Flexible with the number of questions and answers
 {
     DNSHeader header;
-    DNSQuestion *questions;
-    DNSAnswer *answers;
+    DNSQuestion *questions = nullptr;
+    DNSAnswer *answers = nullptr;
+    ~DNSMessage() // Free data use
+    {
+        delete[] questions;
+        delete[] answers;
+    }
 };
 
-// Parse the name into labels, codecrafters.io -> \x0ccodecrafters\x02io\x00
+// Serialize the name into labels, codecrafters.io -> \x0ccodecrafters\x02io\x00
 std::string serializeName(std::string name)
 {
     std::string result = "";
@@ -64,6 +72,26 @@ std::string serializeName(std::string name)
     result += temp;
     // Add null terminate
     result.push_back('\0');
+    return result;
+}
+// Parse the labels into name \x0ccodecrafters\x02io\x00 -> codecrafters.io
+// Only works with correct serialized format from beginning
+std::string parseName(std::string name)
+{
+    std::string result = "";
+    int i = 0;
+    while (name[i] != '\0')
+    { // parse each label by taking out the labels
+        int len = int(name[i]);
+        if (i)
+            result += '.';
+        for (int j = 1; j <= len; j++)
+        {
+            result += name[i + j];
+        }
+        i += len + 1;
+    }
+
     return result;
 }
 
@@ -101,7 +129,7 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
         len += sizeof(uint16_t);
         memcpy(dest + len, &(a._class), sizeof(uint16_t));
         len += sizeof(uint16_t);
-        memcpy(dest + len, &(a.ttl), sizeof(uint16_t));
+        memcpy(dest + len, &(a.ttl), sizeof(uint32_t));
         len += sizeof(uint32_t);
         memcpy(dest + len, &(a.rdLength), sizeof(uint16_t));
         len += sizeof(uint16_t);
@@ -123,5 +151,30 @@ void parseDNSMessage(DNSMessage &dest, char *src, size_t &len)
     dest.header.flags &= htons(~(0b11111111));
     dest.header.flags &= htons(~(0b11 << 9));
     // qd,ns,ar count got copied normally, just need update ancount
-    dest.header.anCount = dest.header.qdCount;
+
+    // Parse the question section,
+
+    // Parse each question
+    size_t numQ = ntohs(dest.header.qdCount);
+    if (numQ)
+        dest.questions = new DNSQuestion[numQ];
+    for (int i = 0; i < numQ; i++)
+    {
+        DNSQuestion &q = dest.questions[0];
+        int label_len = 0;
+        while (src[len + label_len] != '\0')
+        {
+            int temp = int(src[len + label_len]);
+            label_len += temp + 1;
+        }
+        label_len++; // acount for '\0';
+        q.qName = parseName(std::string(src + len, src + len + label_len));
+        len += label_len;
+        memcpy(&q.qType, src + len, sizeof(uint16_t));
+        len += sizeof(uint16_t);
+        memcpy(&q.qClass, src + len, sizeof(uint16_t));
+        len += sizeof(uint16_t);
+    }
 }
+
+#endif

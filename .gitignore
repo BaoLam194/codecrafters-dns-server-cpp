@@ -1054,3 +1054,6 @@ output.txt
 client
 
 src/*.txt
+
+*test
+*.cpp

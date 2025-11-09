@@ -57,8 +57,6 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
 
     serializeDNSMessage(sendBuf, req, offset);
     // Send to serverAddress a dns query
-    for (unsigned char c : sendBuf)
-        printf("%02X ", c);
     if (!sendto(udpSocket, sendBuf, offset, 0, reinterpret_cast<sockaddr *>(&serverAddress), sizeof(serverAddress)))
     {
         std::cerr << "Send data fails: " << strerror(errno) << "..." << std::endl;

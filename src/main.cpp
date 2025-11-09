@@ -65,7 +65,12 @@ int main()
 
         buffer[bytesRead] = '\0';
         std::cout << "Received " << bytesRead << " bytes." << std::endl;
+
         // Read the receive into a file for debugging
+        // Parse the query into my struct
+        DNSMessage query;
+        size_t bufOffset = 0;
+        parseDNSMessage(query, buffer, bufOffset);
 
         std::ofstream file("./src/clientQuery.txt", std::ios::out | std::ios::trunc);
         file.write(buffer, bytesRead);
@@ -74,26 +79,57 @@ int main()
 
         // Create an empty message and parse the query into response
         DNSMessage response;
-        size_t bufOffset = 0;
-        parseDNSMessage(response, buffer, bufOffset);
+        // Handle Header
+        response.header.transactionId = htons(1234);
+        if (ntohs(query.header.qdCount) & (1 << 15)) // if flag bit is reply, then wrong
+        {
+            std::cerr << "Expected a query, reply received. " << strerror(errno) << std::endl;
+            return 1;
+        }
+        response.header.flags = htons(1 << 15);
+        response.header.qdCount = query.header.qdCount;
+        // 0 should be same for both network and host byte.
+        response.header.anCount = response.header.qdCount;
+        response.header.nsCount = 0;
+        response.header.arCount = 0;
 
         // Handle question
-        response.questions = new DNSQuestion[ntohs(response.header.qdCount)]; // currently have one question
-        response.questions->qName = "codecrafters.io";
-        response.questions->qType = htons(1);
-        response.questions->qClass = htons(1);
+        size_t numQ = ntohs(response.header.qdCount);
+        response.questions = new DNSQuestion[numQ]; // currently have one question
+        for (int i = 0; i < numQ; i++)
+        {
+            DNSQuestion &q = response.questions[i];
+            q.qName = query.questions[i].qName;
+            if (ntohs(query.questions[i].qType) != 1 || ntohs(query.questions[i].qClass) != 1)
+            {
+                std::cerr << "Expected a 'A' record type and 'IN' record class onyl." << strerror(errno) << std::endl;
+                return 1;
+            }
+            q.qType = query.questions[i].qType;
+            q.qClass = query.questions[i].qClass;
+        }
 
         // Handle answer
-        response.answers = new DNSAnswer[ntohs(response.header.anCount)];
-        response.answers->name = response.questions->qName;
-        response.answers->type = htons(1);
-        response.answers->_class = htons(1);
-        response.answers->ttl = htons(60);
-        response.answers->rdLength = htons(4);
-        response.answers->rData = "\x08"
-                                  "\x08"
-                                  "\x08"
-                                  "\x08";
+        size_t numA = ntohs(response.header.qdCount);
+        response.answers = new DNSAnswer[numA];
+        for (int i = 0; i < numA; i++)
+        {
+            DNSAnswer &a = response.answers[i];
+            a.name = query.questions[i].qName;
+            if (ntohs(query.questions[i].qType) != 1 || ntohs(query.questions[i].qClass) != 1)
+            {
+                std::cerr << "Expected a 'A' record type and 'IN' record class onyl." << strerror(errno) << std::endl;
+                return 1;
+            }
+            a.type = query.questions[i].qType;
+            a._class = query.questions[i].qClass;
+            a.ttl = htonl(60);
+            a.rdLength = htons(4);
+            a.rData = "\x08"
+                      "\x08"
+                      "\x08"
+                      "\x08";
+        }
 
         // Serialize everything into a buffer:
         char sendBuf[512];
@@ -105,8 +141,6 @@ int main()
         {
             perror("Failed to send response");
         }
-        // Free data
-        delete[] response.questions;
         std::cout << "Send back DNS reply to answer the query" << std::endl;
     }
 

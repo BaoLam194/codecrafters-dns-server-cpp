@@ -43,15 +43,22 @@ struct DNSMessage // Flexible with the number of questions and answers
 };
 
 // Serialize the name into labels, codecrafters.io -> \x0ccodecrafters\x02io\x00
+// Not dealing with compressed packet now
 std::string serializeName(std::string name)
 {
     std::string result = "";
     std::string temp = "";
-    uint8_t len = 0;
+    uint8_t len = 0; // length of each octet(label)
     for (int i = 0; i < name.length(); i++)
     {
+        if (len > 63)
+        {
+            std::cerr << "Invalid length for each label for serializ"
+                      << "ing,maximum allowed is 63, receive " << len << " characters " << strerror(errno) << std::endl;
+        }
         if (name[i] == '.')
         {
+
             result.push_back(len);
             result += temp;
             len = 0;
@@ -72,15 +79,22 @@ std::string serializeName(std::string name)
 }
 // Parse the labels into name \x0ccodecrafters\x02io\x00 -> codecrafters.io
 // Only works with correct serialized format from beginning
-std::string parseName(std::string name)
+std::string parseName(std::string name, bool pointer)
 {
+
     std::string result = "";
     int i = 0;
     while (name[i] != '\0')
     { // parse each label by taking out the labels
-        int len = int(name[i]);
+        uint8_t len = uint8_t(name[i]);
+        if (len > 63)
+        {
+            std::cerr << "Invalid length for each label for pars"
+                      << "ing, maximum allowed is 63, receive " << len << " characters " << strerror(errno) << std::endl;
+        }
         if (i)
             result += '.';
+
         for (int j = 1; j <= len; j++)
         {
             result += name[i + j];
@@ -92,11 +106,11 @@ std::string parseName(std::string name)
 }
 
 // Serialize the message into buffer and current offset len.
-void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
+void serializeDNSMessage(char *dest, DNSMessage &src, size_t &pos)
 {
     // Serialize header section
-    memcpy(dest + len, &(src.header), sizeof(src.header));
-    len += sizeof(src.header);
+    memcpy(dest + pos, &(src.header), sizeof(src.header));
+    pos += sizeof(src.header);
 
     // Serialize question section
     size_t numQ = ntohs(src.header.qdCount);
@@ -105,12 +119,12 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
     {
         const DNSQuestion &q = src.questions[i];
         std::string temp = serializeName(q.qName);
-        memcpy(dest + len, temp.data(), (size_t)temp.length());
-        len += temp.length();
-        memcpy(dest + len, &(q.qType), sizeof(uint16_t));
-        len += sizeof(uint16_t);
-        memcpy(dest + len, &(q.qClass), sizeof(uint16_t));
-        len += sizeof(uint16_t);
+        memcpy(dest + pos, temp.data(), (size_t)temp.length());
+        pos += temp.length();
+        memcpy(dest + pos, &(q.qType), sizeof(uint16_t));
+        pos += sizeof(uint16_t);
+        memcpy(dest + pos, &(q.qClass), sizeof(uint16_t));
+        pos += sizeof(uint16_t);
     }
 
     // Serialize each answer
@@ -119,28 +133,28 @@ void serializeDNSMessage(char *dest, DNSMessage &src, size_t &len)
     {
         const DNSAnswer &a = src.answers[i];
         std::string temp = serializeName(a.name);
-        memcpy(dest + len, temp.data(), (size_t)temp.length());
-        len += temp.length();
-        memcpy(dest + len, &(a.type), sizeof(uint16_t));
-        len += sizeof(uint16_t);
-        memcpy(dest + len, &(a._class), sizeof(uint16_t));
-        len += sizeof(uint16_t);
-        memcpy(dest + len, &(a.ttl), sizeof(uint32_t));
-        len += sizeof(uint32_t);
-        memcpy(dest + len, &(a.rdLength), sizeof(uint16_t));
-        len += sizeof(uint16_t);
-        memcpy(dest + len, a.rData.data(), (size_t)a.rData.length());
-        len += a.rData.length();
+        memcpy(dest + pos, temp.data(), (size_t)temp.length());
+        pos += temp.length();
+        memcpy(dest + pos, &(a.type), sizeof(uint16_t));
+        pos += sizeof(uint16_t);
+        memcpy(dest + pos, &(a._class), sizeof(uint16_t));
+        pos += sizeof(uint16_t);
+        memcpy(dest + pos, &(a.ttl), sizeof(uint32_t));
+        pos += sizeof(uint32_t);
+        memcpy(dest + pos, &(a.rdLength), sizeof(uint16_t));
+        pos += sizeof(uint16_t);
+        memcpy(dest + pos, a.rData.data(), (size_t)a.rData.length());
+        pos += a.rData.length();
     }
 }
 
 // Parse the byte buffer into DNSMessage
-void parseDNSMessage(DNSMessage &dest, char *src, size_t &len)
+void parseDNSMessage(DNSMessage &dest, char *src, size_t &pos)
 {
     // Parse header section, mimic ID, Opcode and RD only, else turn 0 except QR
 
-    memcpy(&dest.header, src + len, sizeof(DNSHeader));
-    len += sizeof(DNSHeader);
+    memcpy(&dest.header, src + pos, sizeof(DNSHeader));
+    pos += sizeof(DNSHeader);
 
     // Parse the question section,
     // Parse each question
@@ -149,18 +163,18 @@ void parseDNSMessage(DNSMessage &dest, char *src, size_t &len)
     {
         DNSQuestion q;
         int label_len = 0;
-        while (src[len + label_len] != '\0')
+        while (src[pos + label_len] != '\0')
         {
-            int temp = int(src[len + label_len]);
-            label_len += temp + 1;
+            uint8_t temp = uint8_t(src[pos + label_len]); // make sure it is unsigned interger from 0-255 only
+            label_len += temp + 1;                        // Go to next label count
         }
         label_len++; // acount for '\0';
-        q.qName = parseName(std::string(src + len, src + len + label_len));
-        len += label_len;
-        memcpy(&q.qType, src + len, sizeof(uint16_t));
-        len += sizeof(uint16_t);
-        memcpy(&q.qClass, src + len, sizeof(uint16_t));
-        len += sizeof(uint16_t);
+        q.qName = parseName(std::string(src + pos, src + pos + label_len), false);
+        pos += label_len;
+        memcpy(&q.qType, src + pos, sizeof(uint16_t));
+        pos += sizeof(uint16_t);
+        memcpy(&q.qClass, src + pos, sizeof(uint16_t));
+        pos += sizeof(uint16_t);
         dest.questions.push_back(q);
     }
 }

@@ -10,7 +10,7 @@ int main(int argc, char **argv) // Take in a ipv4 address argument and send to t
 {
     if (argc != 2)
     {
-        std::cout << "Your are giving " << argc - 1 << " arguments, 1 expected" << std::endl;
+        std::cerr << "Your are giving " << argc - 1 << " arguments, 1 expected" << strerror(errno) << std::endl;
         return 1;
     }
     // Convert the argument into network ip address

@@ -18,6 +18,18 @@ struct DNSHeader
     uint16_t anCount;
     uint16_t nsCount;
     uint16_t arCount;
+    DNSHeader &operator=(const DNSHeader &rhs)
+    {
+        if (this != &rhs)
+        {
+            this->transactionId = rhs.transactionId;
+            this->flags = rhs.flags;
+            this->qdCount = rhs.qdCount;
+            this->anCount = rhs.anCount;
+            this->nsCount = rhs.nsCount;
+            this->arCount = rhs.arCount;
+        }
+    }
 };
 
 struct DNSQuestion
@@ -25,6 +37,15 @@ struct DNSQuestion
     std::string qName; // codecrafters.io or google.com, parse later
     uint16_t qType;
     uint16_t qClass;
+    DNSQuestion &operator=(const DNSQuestion &rhs)
+    {
+        if (this != &rhs)
+        {
+            this->qName = rhs.qName;
+            this->qName = rhs.qType;
+            this->qName = rhs.qClass;
+        }
+    }
 };
 struct DNSAnswer
 {
@@ -34,6 +55,18 @@ struct DNSAnswer
     uint32_t ttl;
     uint16_t rdLength;
     std::string rData;
+    DNSAnswer &operator=(const DNSAnswer &rhs)
+    {
+        if (this != &rhs)
+        {
+            this->name = rhs.name;
+            this->_class = rhs._class;
+            this->ttl = rhs.ttl;
+            this->rdLength = rhs.rdLength;
+            this->rData = rhs.rData;
+        }
+        return *this;
+    }
 };
 struct DNSMessage // Flexible with the number of questions and answers
 {
